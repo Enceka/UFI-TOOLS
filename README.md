@@ -34,6 +34,13 @@ UFI-TOOLS 提供 **Pocket Edition（PE版）** 与 **完整版本** 两种使用
 
 > 💡 PE版适合普通用户快速使用；完整版为进阶用户或发烧友设计。
 
+> 💡 另有一个 **Linux 移植版**：`UFI-TOOLS/linux/`。它面向 E5-LINUX 这类 Linux 手持终端
+> （Debian + systemd）架构：把本软件装到该设备上，局域网内的设备打开 `http://<设备IP>:2333/`
+> 即可用 UFI-TOOLS 的功能**控制这台设备本身**（状态监控、蜂窝数据、Wi-Fi 热点、接入设备、
+> AT 指令、脚本与定时任务、插件与主题）。后端用 Python 标准库重写，前端与签名鉴权沿用不变；
+> 面向中兴的 `goform` 厂商协议层已移除，改由 systemd / hostapd / sysfs 直接驱动。
+> 详见 [linux/README.md](linux/README.md)。
+
 > 💡 如何知道自己的设备是否支持UFI-TOOLS？
 >
 > - 只要你是某兴随身WiFi，紫光平台，Android系统，就可以尝试使用UFI-TOOLS进行设备管理。

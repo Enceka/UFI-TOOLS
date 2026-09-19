@@ -1,0 +1,11 @@
+#!/bin/sh
+# UFI-TOOLS for Linux -- run from a source checkout.
+#
+# Installed systems have /usr/bin/ufi-tools pointing at the packaged copy; this
+# wrapper is the one to use when the tree has not been installed yet.
+set -eu
+SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(dirname "$SELF")
+PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH
+exec python3 -m ufitools "$@"

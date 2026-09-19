@@ -1,0 +1,8 @@
+#!/bin/sh
+# ufi_req for Linux -- signed request tool (drop-in for the Android Go binary).
+set -eu
+SELF=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT=$(dirname "$SELF")
+PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH
+exec python3 -c 'import sys; from ufitools.req import main; sys.exit(main())' "$@"

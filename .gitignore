@@ -1,32 +1,16 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Local runtime state (never commit a device's token or configuration)
+linux/config.json
+linux/runtime.json
+linux/*-managed.conf
+
+# Editors / OS
 .DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
-app/.cxx
-app/build
-app/release
-app/src/main/assets/node_modules
-app/src/main/assets/lang/
-app/src/main/assets/lang/**
-app/src/main/assets/script/
-app/src/main/assets/script/**
-app/src/main/assets/style/
-app/src/main/assets/style/**
-app/src/main/assets/index.html
-app/src/main/assets/manifest.json
-app/src/main/assets/service-worker.js
-app/src/main/assets/node_modules/*/**
-app/src/main/assets/dictionary.json
-app/frontEnd/node_modules/*/**
-app/frontEnd/node_modules/*
+.idea/
+.vscode/
+*.swp

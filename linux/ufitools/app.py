@@ -30,8 +30,8 @@ def bundled_static_root() -> str:
     here = os.path.dirname(os.path.abspath(__file__))
     candidates = [
         os.environ.get("UFI_TOOLS_WWW", ""),
-        os.path.join(here, "..", "..", "app", "frontEnd", "public"),  # source checkout
-        os.path.join(here, "..", "www"),
+        os.path.join(here, "..", "www"),          # source checkout (linux/www)
+        os.path.join(here, "www"),                # installed next to the package
         "/usr/share/ufi-tools/www",
     ]
     for candidate in candidates:

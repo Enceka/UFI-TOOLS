@@ -1,5 +1,17 @@
 ## 0. 写在前面
 
+> **Linux 端口说明**：本仓库只包含 UFI-TOOLS 的 Linux 移植版（`linux/`），
+> 它仍实现本文档中**与 Web 前端相关**的接口（鉴权、设备信息、AT、插件、主题、任务、
+> 转发、测速、上传、`/api/proxy`），实现细节见 [`linux/README.md`](linux/README.md)。
+> 本文档中依赖中兴厂商后台的部分**不适用于 Linux 端口**，已从实现中移除：
+> 第 3.13 节（`/api/goform/...` 反代与 `goformId` 速查表）、`AD` 防篡改签名与会话 Cookie
+> （`/api/set_cookie`、`/api/get_cookie`）、`/api/getSupportNrBandList`、
+> APK 更新（`/api/check_update`、`/api/download_apk`、`/api/install_apk`）、
+> 无线 ADB（`/api/adb_wifi_setting`、`/api/adb_alive`）、
+> 厂商后台密码（`/api/update_admin_pwd`、`/api/get_official_web_password`）。
+> 其中 `/api/goform/...` 这个路径名在前端中被保留，但不再转发给任何厂商后台，
+> 而是由本机的字段映射与动作路由直接作答。
+
 > **本API文档适用于 `UFI-TOOLS v4.1.3`版本**
 > **本文档中 UFI-TOOLS 自身的`POST`请求体均为`JSON`格式**（例外：`/api/upload_img` 为 `multipart/form-data`；`/api/speedtest` 无请求体）
 > **本文档中所有`GET`请求参数均为`query`参数**
@@ -121,7 +133,7 @@ kano-sign: <计算后的SHA256哈希>
 authorization: <SHA256(口令)的小写hex>
 ```
 
-**JS代码参考：[https://github.com/kanoqwq/UFI-TOOLS/blob/http-server-version/app/frontEnd/public/script/requests.js](https://github.com/kanoqwq/UFI-TOOLS/blob/http-server-version/app/frontEnd/public/script/requests.js)**
+**JS代码参考：[https://github.com/kanoqwq/UFI-TOOLS/blob/http-server-version/app/frontEnd/public/script/requests.js](https://github.com/kanoqwq/UFI-TOOLS/blob/http-server-version/app/frontEnd/public/script/requests.js)（本仓库对应 `linux/www/script/requests.js`）**
 
 ------
 
@@ -836,7 +848,7 @@ GET /api/goform/goform_get_cmd_process?multi_data=1&isTest=false&cmd=sms_data_to
 
 **快捷开关状态**：`performance_mode`、`net_select`、`usb_network_protocal`、`samba_switch`、`roam_setting_option`、`dial_roam_setting_option`、`indicator_light_switch`、`restart_schedule_switch`、`restart_time`、`sleep_sysIdleTimeToSleep`、`is_support_nfc_functions`、`web_wifi_nfc_switch`、`sim_slot`
 
-**APN 配置**（约 90 个字段）：`apn_interface_version,APN_config0~19,ipv6_APN_config0~19,apn_m_profile_name,profile_name,apn_wan_dial,apn_select,apn_pdp_type,apn_pdp_select,apn_pdp_addr,index,apn_Current_index,apn_auto_config,apn_ipv6_apn_auto_config,apn_mode,apn_wan_apn,apn_ppp_auth_mode,apn_ppp_username,apn_ppp_passwd,dns_mode,prefer_dns_manual,standby_dns_manual,apn_ipv6_wan_apn,...`（完整列表见 `app/frontEnd/public/script/requests.js` 的 `getAPNData`）
+**APN 配置**（约 90 个字段）：`apn_interface_version,APN_config0~19,ipv6_APN_config0~19,apn_m_profile_name,profile_name,apn_wan_dial,apn_select,apn_pdp_type,apn_pdp_select,apn_pdp_addr,index,apn_Current_index,apn_auto_config,apn_ipv6_apn_auto_config,apn_mode,apn_wan_apn,apn_ppp_auth_mode,apn_ppp_username,apn_ppp_passwd,dns_mode,prefer_dns_manual,standby_dns_manual,apn_ipv6_wan_apn,...`（完整列表见 `linux/www/script/requests.js` 的 `getAPNData`；Linux 端口不实现 APN 编辑）
 
 ------
 

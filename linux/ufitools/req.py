@@ -1,9 +1,9 @@
-"""``ufi_req`` -- signed request tool, ported from ``assets/shell/ufi_req.go``.
+"""``ufi_req`` -- signed request tool, the port of the ``ufi_req`` helper that
+ships with the Android app.
 
-The Go tool is shipped to Android devices so a shell on the device can drive the
-API without knowing the token: it reads the stored hash out of
-``/data/data/com.minikano.f50_sms/shared_prefs/kano_ZTE_store.xml``.  On Linux the
-same trick reads ``config.json``, so the command line stays almost identical:
+That helper exists so a shell on the device can drive the API without knowing the
+token: it reads the stored hash out of the app's preferences.  Here the same
+trick reads ``config.json``, so the command line stays almost identical:
 
     ufi_req -X POST -e /api/root_shell -d '{"command":"id"}'
     ufi_req -host 192.168.0.1:2333 -pass 123456 -X GET -e "/api/AT?command=AT"

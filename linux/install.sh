@@ -47,10 +47,10 @@ rm -rf "$LIB_DIR/ufitools"
 cp -R "$HERE/ufitools" "$LIB_DIR/ufitools"
 find "$LIB_DIR/ufitools" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
-# The web frontend is plain files; the Android build obfuscates them with
-# node build.js, which is unnecessary here and would need npm in the image.
+# The web frontend is plain static files shipped in linux/www; there is no build
+# step (the Android tree had one because it packed the result into an APK).
 if [ -z "$FRONTEND" ]; then
-    for candidate in "$REPO/app/frontEnd/public" "$HERE/www"; do
+    for candidate in "$HERE/www" "$REPO/linux/www"; do
         if [ -f "$candidate/index.html" ]; then FRONTEND="$candidate"; break; fi
     done
 fi

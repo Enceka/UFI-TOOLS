@@ -1,7 +1,7 @@
 """HTTP endpoint modules.
 
 Each module exposes ``register(router, app)`` and owns the same paths the
-Android app serves, so the web frontend in ``app/frontEnd`` needs no changes.
+Android app served, so the web frontend in ``linux/www`` needs no changes.
 The split mirrors the Kotlin ``modules/`` package one-for-one.
 
 Two of them are Linux-only and are where the actual device control lives:

@@ -1,6 +1,6 @@
 """Local device information gathered from /proc and /sys.
 
-Port of ``app/src/main/java/com/minikano/f50_sms/utils/DeviceInfo.kt``.
+Port of the Android app's ``DeviceInfo.kt``.
 
 The Android file and this one read the *same* Linux interfaces, which is the
 happy accident that makes this port small: ``/proc/stat``, ``/proc/meminfo``,

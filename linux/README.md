@@ -62,7 +62,8 @@ cd UFI-TOOLS/linux
 ./bin/ufi-tools --data-dir /tmp/ufi-tools serve --port 2333
 ```
 
-Web 前端默认取自本仓库 `app/frontEnd/public`（无需 `npm build`，混淆对 Linux 端没有必要）。
+Web 前端是本仓库的 `linux/www/`（纯静态文件，无构建步骤：Android 那套 `npm build` 是为了把
+产物打进 APK，Linux 端直接提供源文件即可）。
 浏览器打开 `http://<设备IP>:2333/`，默认口令 `admin`（会被判为弱口令，请立即改）。
 
 ### 安装到设备

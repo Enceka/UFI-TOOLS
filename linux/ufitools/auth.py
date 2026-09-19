@@ -7,15 +7,12 @@ Three headers guard ``/api/``:
                  where the HMAC input is ``"minikano" + METHOD + PATH + t``
 ``authorization`` ``sha256_hex(plaintext token)``, compared in constant time
 
-The reference implementations this was ported from are, in order of authority:
-
-* ``app/src/main/java/com/minikano/f50_sms/modules/auth/KanoAuth.kt``
-* ``app/src/main/java/com/minikano/f50_sms/utils/KanoUtils.kt`` (HmacSignature,
-  normalizePath, normalizeLeadingSlashes, constantTimeSha256Equals)
-* ``app/src/main/assets/shell/ufi_req.go`` (the Go mirror shipped to devices)
-* ``app/frontEnd/public/script/requests.js`` (what browsers actually compute)
-
-All four agree, so the same client code talks to this server unchanged.
+The reference implementations are the four that shipped with the Android app
+(which lives in its own repository, not here): ``KanoAuth.kt`` and
+``KanoUtils.kt`` on the server side, ``ufi_req.go`` in the tool shipped to
+devices, and ``requests.js`` in the browser.  All four agree, so the same client
+code -- including the web frontend in ``linux/www`` -- talks to this server
+unchanged.
 """
 
 from __future__ import annotations
@@ -109,9 +106,9 @@ def constant_time_sha256_equals(first: str, second: str) -> bool:
 def normalize_token(raw: Optional[str]) -> str:
     """Return the stored representation of a token.
 
-    Android stores ``sha256_hex(token)`` and rewrites a plaintext value on first
-    use (``KanoUtils.transformLoginToken``).  Doing the same here means an
-    existing ``kano_ZTE_store.xml`` can be imported verbatim.
+    The Android app stores ``sha256_hex(token)`` and rewrites a plaintext value on
+    first use.  Accepting both forms here means a preferences export from a
+    device can be imported verbatim.
     """
     token = (raw or "").strip()
     if is_sha256_hex(token):

@@ -2,12 +2,13 @@
 
 On Android, ``/api/AT`` shells out to the ``sendat`` binary, which goes through
 ``service call vendor.sprd.hardware.tool.IToolControl``.  On an E5 running
-E5-LINUX the same job is done by ``/opt/e5/e5-atd``, which owns
-``/dev/stty_nr1`` for the whole boot and brokers commands over a fifo.  That
-daemon exists because the tty has exactly one reader and because opening the
-command channel per request makes the CP's queue overflow and the PS task
-assert, so this module must talk to the daemon rather than poke the tty itself.
-The default configuration therefore uses the ``command`` backend below.
+E5-LINUX the same job is done by ``unisoc-cpd``, which owns
+``/dev/stty_nr1`` for the whole boot and runs AT as a capability of its own;
+``/opt/e5/e5-at`` is the one-line client in front of it.  That daemon exists
+because the tty has exactly one reader and because opening the command channel
+per request makes the CP's queue overflow and the PS task assert, so this module
+must talk to the daemon rather than poke the tty itself.  The default
+configuration therefore uses the ``command`` backend below.
 
 Three backends are supported, tried in this order:
 
@@ -37,7 +38,7 @@ import time
 import tty
 from typing import List, Optional
 
-#: Lines that end an AT response (same set as e5-atd).
+#: Lines that end an AT response (the same set unisoc-cpd recognises).
 FINAL_TOKENS = ("OK", "ERROR", "+CME ERROR", "+CMS ERROR", "CONNECT", "NO CARRIER")
 
 AT_ECHO_RE = re.compile(r"^AT.*$", re.IGNORECASE)
@@ -242,7 +243,7 @@ class ATRunner:
             raise ATError("解析失败，AT指令需要以 “AT” 开头")
         backend = self.active()
         if backend is None:
-            raise ATError("没有可用的 AT 通道（e5-atd 未运行，且找不到 AT 设备）")
+            raise ATError("没有可用的 AT 通道（unisoc-cpd 未运行，且找不到 AT 设备）")
         return backend.run(command, timeout or self.timeout)
 
 

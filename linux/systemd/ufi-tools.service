@@ -6,8 +6,10 @@ Documentation=file:///usr/share/doc/ufi-tools/README.md
 # still serves the UI.
 After=network-online.target e5-vendor.service
 Wants=network-online.target
-After=e5-atd.service
-Wants=e5-atd.service
+# The AT bridge is unisoc-cpd in the G2 shape (e5-atd is gone): ask the owner
+# through /opt/e5/e5-at, never open the tty.
+After=unisoc-cpd.service
+Wants=unisoc-cpd.service
 
 [Service]
 Type=simple

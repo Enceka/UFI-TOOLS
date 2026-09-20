@@ -4,8 +4,7 @@ Signal strength, operator, registration and the SIM identity only exist behind
 AT commands, and AT is the one resource on this device that must not be polled
 hard: the E5's CP asserts (``MN_AL Task PS CP assert ... queue was full``) when
 the command channel is used faster than Android's RIL would, which is why
-``atd.py`` serialises commands with a minimum gap and why the bring-up scripts
-poll it every five minutes.
+``e5-atd`` owns the tty and serialises its callers, and why this cache exists.
 
 The web UI, however, polls its status block once per second.  The two are
 reconciled here: :class:`ModemSnapshot` keeps the last answer and refreshes it in

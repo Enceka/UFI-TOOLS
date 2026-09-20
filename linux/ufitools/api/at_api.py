@@ -2,7 +2,7 @@
 
 ``/api/AT`` accepts the same query parameter and answers the same
 ``{"result": "..."}`` shape; the work goes to :mod:`ufitools.at`, which on an
-E5-LINUX device means the ``atd.py`` broker on ``/run/e5-atd.sock``.
+E5-LINUX device means the ``e5-atd`` broker, through the ``e5-at`` client.
 
 The Android module's ``/api/getSupportNrBandList`` is gone: it existed to feed
 the vendor's band-lock page, which has no counterpart here.

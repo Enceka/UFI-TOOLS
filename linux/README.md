@@ -27,7 +27,7 @@ SPA。它的价值在**接口**，不在 Android。本移植保留接口，替�
 
 | Android | 本移植 | 模块 |
 |---|---|---|
-| `sendat`（`service call …IToolControl`） | `/run/e5-atd.sock`（E5 的 `atd.py`），回退 tty 或外部命令 | `at.py` |
+| `sendat`（`service call …IToolControl`） | `/opt/e5/e5-at`（E5 的 `e5-atd` 持有的 fifo） | `at.py` |
 | `DeviceInfo`（`/proc`、`/sys`） | 同一批内核接口，逐字段同形 | `sysinfo.py` |
 | `NetworkStatsManager` | 采样 `/sys/class/net/*/statistics/*_bytes`，按日累计并算速率 | `traffic.py` |
 | 厂商 `goform` 控制 | systemd / hostapd / dnsmasq / sysfs | `control.py` |
@@ -43,8 +43,8 @@ SPA。它的价值在**接口**，不在 Android。本移植保留接口，替�
 ### 为什么要给 AT 加缓存
 
 信号、运营商、IMEI 这些字段只在 AT 之后，而 AT 是这台设备上**唯一不能被高频轮询**的资源：CP 会在
-命令通道被高频使用后断言（`MN_AL Task PS CP assert ... queue was full`），这正是 E5-LINUX 用
-`atd.py` 串行化命令、并把上下文轮询降到 5 分钟一次的原因。而 Web 界面每秒轮询一次状态块。
+命令通道被高频使用后断言（`MN_AL Task PS CP assert ... queue was full`），这正是 E5-LINUX 让
+`e5-atd` 独占并串行化 AT 通道（单持有者、一次一条）的原因。而 Web 界面每秒轮询一次状态块。
 
 两者用 `ModemSnapshot` 调和：请求只读缓存，后台线程按 `at_poll_interval`（默认 60 秒）刷新一次，
 因此界面保持 1 Hz，而 modem 每分钟最多看到一轮只读命令。把 `at_poll_interval` 设为 0 则完全不用 AT，
@@ -117,7 +117,7 @@ ufi_req -X POST -e /api/linux/hotspot -d '{"ssid":"E5-Lab","psk":"abcdefgh","cha
 | 定时重启 | ✅ | 后台调度线程按 `restart_time` 执行 |
 | 性能模式 | ✅ | 写 cpufreq `scaling_governor` |
 | 指示灯开关 | ✅ | 写 `/sys/class/leds/*/{trigger,brightness}`（本机没有可控 LED 时明确报错） |
-| AT 指令终端 / 快捷指令 | ✅ | 原样可用，走 `atd.py` |
+| AT 指令终端 / 快捷指令 | ✅ | 原样可用，走 `e5-at`（由 `e5-atd` 转发） |
 | 高级功能 / Root Shell / TTYD | ✅ | 开关高级功能即启停 `ttyd.service`；root shell 受该开关约束 |
 | 内网测速、流量测速 | ✅ | 本地 8 MiB 随机块；蜂窝测速经 `/api/proxy` 拉取外部文件 |
 | 定时任务 | ✅ | 动作为「执行命令」或「转发消息」；旧的 `goformId` 动作仍被路由到本机控制 |
@@ -170,9 +170,9 @@ E5-LINUX 的 initramfs overlay 每次启动都会覆盖 `/etc`，因此 `/etc/ho
 | `login_token_enabled` | `true` | 设为 false 则完全关闭鉴权（仅限受控环境） |
 | `kano_max_skew_ms` | `0` | 0 表示不校验时间戳偏差（与 Android 版一致）；需要防重放时设为如 60000 |
 | `bind` / `port` | `0.0.0.0` / `2333` | 监听地址与端口 |
-| `at_socket` | `/run/e5-atd.sock` | E5 的 `atd.py` 命令通道（Linux 版的 `sendat`） |
-| `at_device` | `/dev/stty_nr1` | `atd.py` 不在时的 tty 回退 |
-| `at_command` | 空 | 任意外部 AT 助手，模板可用 `{cmd}` / `%s` |
+| `at_socket` | 空 | 旧部署的 socket 通道；本镜像不用 |
+| `at_device` | 空 | 直开 tty 的回退；默认不用（tty 只能有一个持有者） |
+| `at_command` | `/opt/e5/e5-at {cmd}` | E5 的 AT 客户端（由 `e5-atd` 转发） |
 | `at_poll_interval` | `60` | modem 派生态的刷新间隔（秒）；0 = 完全不用 AT |
 | `mobile_data_unit` | `e5-mobile-data.service` | 蜂窝数据控制目标 |
 | `hotspot_unit` | `e5-hotspot.service` | 热点控制目标 |

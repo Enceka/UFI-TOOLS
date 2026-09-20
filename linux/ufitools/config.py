@@ -45,9 +45,12 @@ DEFAULTS: Dict[str, Any] = {
     "ttyd_unit": "ttyd.service",
     "advanced_enabled": False,
     # -- Linux bridges ------------------------------------------------------
-    "at_socket": "/run/e5-atd.sock",
-    "at_device": "/dev/stty_nr1",
-    "at_command": "",
+    #: The modem tty must have exactly one owner, and on this image that is
+    #: e5-atd (the mu300-atd port): it serves a fifo, not a socket, so AT goes
+    #: through the e5-at client rather than through a direct open of the tty.
+    "at_socket": "",
+    "at_device": "",
+    "at_command": "/opt/e5/e5-at {cmd}",
     "at_timeout": 8.0,
     #: Modem-derived fields (signal, operator, IMEI...) need AT, and the E5's CP
     #: dies if AT is polled hard, so they are served from a cache refreshed at

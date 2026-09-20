@@ -27,7 +27,9 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(self.config.get("port"), 2333)
         self.assertEqual(self.config.get("mobile_data_unit"), "e5-mobile-data.service")
         self.assertEqual(self.config.get("hotspot_unit"), "e5-hotspot.service")
-        self.assertEqual(self.config.get("at_socket"), "/run/e5-atd.sock")
+        # AT goes through the e5-at client: the tty has exactly one owner (e5-atd)
+        self.assertEqual(self.config.get("at_command"), "/opt/e5/e5-at {cmd}")
+        self.assertEqual(self.config.get("at_socket"), "")
         # No vendor vocabulary survives in the defaults.
         for key in ("gateway_ip", "ADMIN_PWD", "device_mode", "web_server_cookie"):
             self.assertNotIn(key, self.config.data, key)

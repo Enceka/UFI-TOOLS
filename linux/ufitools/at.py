@@ -2,20 +2,20 @@
 
 On Android, ``/api/AT`` shells out to the ``sendat`` binary, which goes through
 ``service call vendor.sprd.hardware.tool.IToolControl``.  On an E5 running
-E5-LINUX the same job is done by ``/opt/e5/atd.py``, which holds
-``/dev/stty_nr0`` (URC stream) and ``/dev/stty_nr1`` (command channel) open for
-the whole boot and brokers commands over a Unix socket.  That daemon exists
-because opening the command channel per request makes the CP's queue overflow
-and the PS task assert, so this module must talk to the daemon rather than poke
-the tty itself.
+E5-LINUX the same job is done by ``/opt/e5/e5-atd``, which owns
+``/dev/stty_nr1`` for the whole boot and brokers commands over a fifo.  That
+daemon exists because the tty has exactly one reader and because opening the
+command channel per request makes the CP's queue overflow and the PS task
+assert, so this module must talk to the daemon rather than poke the tty itself.
+The default configuration therefore uses the ``command`` backend below.
 
 Three backends are supported, tried in this order:
 
-``unix``     ``/run/e5-atd.sock`` -- one line in, response lines out, connection
-             closed by the daemon when the command is answered.
-``tty``      a raw character device (``/dev/stty_nr1``); used when atd.py is not
-             running.  Correct but do not point this at a busy CP for long.
-``command``  an arbitrary helper (for example ``/opt/e5/atd.py cmd {cmd}`` or an
+``unix``     a Unix socket, one line in and response lines out (kept for
+             deployments that broker AT over a socket rather than a fifo).
+``tty``      a raw character device (``/dev/stty_nr1``); correct once, but do not
+             point this at a busy CP for long.
+``command``  an arbitrary helper (``/opt/e5/e5-at {cmd}`` on this image, or an
              Android ``sendat`` binary kept around during a migration).
 
 The module never raises on "no backend": :meth:`ATRunner.available` reports it
@@ -37,7 +37,7 @@ import time
 import tty
 from typing import List, Optional
 
-#: Lines that end an AT response (same set as atd.py).
+#: Lines that end an AT response (same set as e5-atd).
 FINAL_TOKENS = ("OK", "ERROR", "+CME ERROR", "+CMS ERROR", "CONNECT", "NO CARRIER")
 
 AT_ECHO_RE = re.compile(r"^AT.*$", re.IGNORECASE)
@@ -58,7 +58,7 @@ class ATBackend:
 
 
 class UnixSocketBackend(ATBackend):
-    """Talk to the ``atd.py`` broker."""
+    """Talk to a broker that serves AT over a Unix socket."""
 
     name = "unix"
 
@@ -94,7 +94,7 @@ class UnixSocketBackend(ATBackend):
 
 
 class CharDeviceBackend(ATBackend):
-    """Write/read a raw tty directly (fallback when atd.py is absent)."""
+    """Write/read a raw tty directly (fallback when no broker is running)."""
 
     name = "tty"
 
@@ -242,7 +242,7 @@ class ATRunner:
             raise ATError("解析失败，AT指令需要以 “AT” 开头")
         backend = self.active()
         if backend is None:
-            raise ATError("没有可用的 AT 通道（atd.py 未运行，且找不到 AT 设备）")
+            raise ATError("没有可用的 AT 通道（e5-atd 未运行，且找不到 AT 设备）")
         return backend.run(command, timeout or self.timeout)
 
 

@@ -1,9 +1,10 @@
 #!/bin/sh
 # Install the UFI-TOOLS Linux backend on a Debian-style system (E5-LINUX).
 #
-#   ./install.sh                 install, generate a token, enable + start
-#   ./install.sh --no-systemd    copy the files only
-#   ./install.sh --token secret1 install with a known token
+#   ./install.sh                  install with the default token (admin)
+#   ./install.sh --token secret1  install with a known token
+#   ./install.sh --random-token   install with a generated 16-character token
+#   ./install.sh --no-systemd     copy the files only
 #
 # Everything is configurable so the same script works from a source checkout and
 # from a package build directory.
@@ -18,16 +19,18 @@ DATA_DIR=/var/lib/ufi-tools
 UNIT_DIR=/etc/systemd/system
 
 SYSTEMD=1
-TOKEN=""
+TOKEN="admin"
+RANDOM_TOKEN=0
 FRONTEND=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --no-systemd) SYSTEMD=0 ;;
         --token) shift; TOKEN="${1:-}" ;;
+        --random-token) RANDOM_TOKEN=1 ;;
         --frontend) shift; FRONTEND="${1:-}" ;;
         --data-dir) shift; DATA_DIR="${1:-}" ;;
-        -h|--help) sed -n '2,9p' "$0"; exit 0 ;;
+        -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
     shift
@@ -82,23 +85,31 @@ if [ "$SYSTEMD" = "1" ]; then
     install -m 644 "$HERE/systemd/ufi-tools.service" "$UNIT_DIR/ufi-tools.service"
 fi
 
-# Generate (or set) the access token.  A default 'admin' token on a device that
-# may be reachable from the hotspot LAN is the one thing we should not ship.
-if [ -n "$TOKEN" ]; then
-    UFI_TOOLS_DATA="$DATA_DIR" PYTHONPATH="$LIB_DIR" \
-        python3 -m ufitools --data-dir "$DATA_DIR" set-token "$TOKEN" >/dev/null
-    echo "==> access token set as requested"
-else
+# Access token.  The default is ``admin`` so a fresh install is reachable without
+# a trip to the console; the service flags it as a weak token and the panel shows
+# a warning until it is changed.  ``--random-token`` keeps the stricter option
+# for a device that is exposed to an untrusted LAN.
+if [ "$RANDOM_TOKEN" = "1" ]; then
     TOKEN=$(python3 - <<'PY'
 import secrets, string
 alphabet = string.ascii_letters + string.digits
 print(''.join(secrets.choice(alphabet) for _ in range(16)))
 PY
 )
-    UFI_TOOLS_DATA="$DATA_DIR" PYTHONPATH="$LIB_DIR" \
-        python3 -m ufitools --data-dir "$DATA_DIR" set-token "$TOKEN" >/dev/null
+fi
+
+UFI_TOOLS_DATA="$DATA_DIR" PYTHONPATH="$LIB_DIR" \
+    python3 -m ufitools --data-dir "$DATA_DIR" set-token "$TOKEN" >/dev/null
+
+if [ "$TOKEN" = "admin" ]; then
+    echo "==> access token: admin (default)"
+    echo "    this is the weak default: change it with"
+    echo "      ufi-tools --data-dir $DATA_DIR set-token NEW"
+elif [ "$RANDOM_TOKEN" = "1" ]; then
     echo "==> generated access token: $TOKEN"
     echo "    (change it any time with: ufi-tools --data-dir $DATA_DIR set-token NEW)"
+else
+    echo "==> access token set as requested"
 fi
 
 if [ "$SYSTEMD" = "1" ]; then

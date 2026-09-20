@@ -8,9 +8,16 @@
 > （`/api/set_cookie`、`/api/get_cookie`）、`/api/getSupportNrBandList`、
 > APK 更新（`/api/check_update`、`/api/download_apk`、`/api/install_apk`）、
 > 无线 ADB（`/api/adb_wifi_setting`、`/api/adb_alive`）、
-> 厂商后台密码（`/api/update_admin_pwd`、`/api/get_official_web_password`）。
-> 其中 `/api/goform/...` 这个路径名在前端中被保留，但不再转发给任何厂商后台，
-> 而是由本机的字段映射与动作路由直接作答。
+> 厂商后台密码（`/api/update_admin_pwd`、`/api/get_official_web_password`）、
+> 厂商后台登录与会话（`LOGIN`/`LOGOUT`、`LD`/`RD`、密码失败计数与锁定）。
+>
+> 取代它们的是本机自己的兼容面：
+>
+> * `GET /api/ui/fields?cmd=<字段列表>` —— 按本文档沿用的字段名返回本机真实状态；
+> * `POST /api/ui/action`（表单参数 `action=<动作名>`）—— 动作落到 systemd / hostapd / sysfs。
+>
+> 认证只有一层：UFI-TOOLS 口令（第 1 节的 `authorization` 头）。已退役的字段与动作会返回
+> 明确的「本机不支持」，不会给出看起来合理的假值。
 
 > **本API文档适用于 `UFI-TOOLS v4.1.3`版本**
 > **本文档中 UFI-TOOLS 自身的`POST`请求体均为`JSON`格式**（例外：`/api/upload_img` 为 `multipart/form-data`；`/api/speedtest` 无请求体）

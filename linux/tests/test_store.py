@@ -113,7 +113,8 @@ class StoreTests(unittest.TestCase):
 
     def test_task_store_add_replaces_by_id(self):
         store = TaskStore(self._path("tasks.json"))
-        task = normalize_task({"id": "a", "time": "03:00:00", "action": {"goformId": "REBOOT_DEVICE"}})
+        task = normalize_task({"id": "a", "time": "03:00:00",
+                               "action": {"kind": "command", "command": "uptime"}})
         store.add(task)
         self.assertEqual(len(store.tasks()), 1)
         self.assertEqual(store.tasks()[0]["time"], "03:00")
@@ -125,16 +126,17 @@ class StoreTests(unittest.TestCase):
 
     def test_normalize_task_validation(self):
         with self.assertRaises(ValueError):
-            normalize_task({"time": "03:00", "action": {"goformId": "X"}})
+            normalize_task({"time": "03:00", "action": {"kind": "command"}})
         with self.assertRaises(ValueError):
-            normalize_task({"id": "a", "time": "25:00", "action": {"goformId": "X"}})
+            normalize_task({"id": "a", "time": "25:00", "action": {"kind": "command"}})
         with self.assertRaises(ValueError):
             normalize_task({"id": "a", "time": "03:00", "action": "nope"})
 
     def test_normalize_task_stringifies_action_values(self):
         task = normalize_task({"id": "a", "time": "03:00",
-                               "action": {"goformId": "SET_SIM_SLOT", "sim_slot": 1}})
-        self.assertEqual(task["actionMap"]["sim_slot"], "1")
+                               "action": {"kind": "command", "command": "uptime", "timeout": 30}})
+        self.assertEqual(task["actionMap"]["timeout"], "30")
+        self.assertEqual(task["actionMap"]["kind"], "command")
 
 
 class MultipartTests(unittest.TestCase):

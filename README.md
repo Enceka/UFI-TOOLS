@@ -15,7 +15,7 @@
 
 ```sh
 cd linux
-sudo ./install.sh                 # 安装到 /usr/lib/ufi-tools + systemd 单元，并生成随机口令
+sudo ./install.sh                 # 安装到 /usr/lib/ufi-tools + systemd 单元，默认口令 admin
 # 或先在源码目录试跑：
 ./bin/ufi-tools --data-dir /tmp/ufi-tools serve --port 2333
 ```

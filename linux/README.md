@@ -12,16 +12,20 @@
 Android 版的 UFI-TOOLS 是一个跑在设备本机的 Ktor 服务器，把宿主能力暴露成 REST API 再配一套静态
 SPA。它的价值在**接口**，不在 Android。本移植保留接口，替换实现。
 
-原版是给**中兴随身 WiFi** 写的，因此有两层东西必须分开看：
+原版是给某一家随身 WiFi 厂商的设备写的，因此有两层东西必须分开看：
 
 | | 处置 |
 |---|---|
-| **厂商协议层**：`goform` 反向代理、`AD` 防篡改签名、会话 Cookie、`zreq` 工具、厂商 `goformId` | **已删除**。E5 不是中兴设备，没有厂商后台可连；本移植不模拟它。 |
-| **前端字段词表**：状态块轮询的 38 个字段名、Wi-Fi/客户端面板的数据形状 | **保留**，但值全部来自本机 `/proc`、`/sys`、systemd、hostapd、modem。这是一层命名翻译，不是厂商协议。 |
+| **厂商协议层**：厂商后台登录与会话、反向代理、`AD` 防篡改签名、随机数与密码失败锁定、厂商专用工具与动作名 | **已删除**。本机没有厂商后台可连；本移植不模拟它。 |
+| **字段词表**：状态块轮询的字段名、Wi-Fi/客户端面板的数据形状 | **保留**，但值全部来自本机 `/proc`、`/sys`、systemd、hostapd、modem。这是一层命名翻译，不是厂商协议。 |
 
-也就是说：`/api/goform/...` 这个路径名还在（前端硬编码了它），但它不再转发给任何厂商后台，
-而是由本机的读取映射（`ufitools/uifields.py`）与动作路由（`ufitools/api/ui_compat.py`）直接作答，
+也就是说：前端不再讲厂商协议了。它读字段走 `/api/ui/fields`，下发动作走 `/api/ui/action`，
+两者由本机的读取映射（`ufitools/uifields.py`）与动作路由（`ufitools/api/ui_compat.py`）直接作答，
 写操作落到 `ufitools/control.py`。没有会话、没有签名、没有厂商服务。
+
+**只有一层凭据**：UFI-TOOLS 口令。厂商后台登录（`LOGIN`/`LOGOUT`、`LD`/`RD` 随机数、密码失败计数
+与锁定、`AD` 签名输入）已从前后端一并移除；请求这些字段或动作会得到明确的「本机不支持」，
+而不是一个看起来合理的假象。
 
 ## 架构
 
@@ -30,9 +34,9 @@ SPA。它的价值在**接口**，不在 Android。本移植保留接口，替�
 | `sendat`（`service call …IToolControl`） | `/opt/e5/e5-at`（E5 的 `e5-atd` 持有的 fifo） | `at.py` |
 | `DeviceInfo`（`/proc`、`/sys`） | 同一批内核接口，逐字段同形 | `sysinfo.py` |
 | `NetworkStatsManager` | 采样 `/sys/class/net/*/statistics/*_bytes`，按日累计并算速率 | `traffic.py` |
-| 厂商 `goform` 控制 | systemd / hostapd / dnsmasq / sysfs | `control.py` |
+| 厂商控制面 | systemd / hostapd / dnsmasq / sysfs | `control.py` |
 | 厂商状态字段 | 本机真实数据的只读映射 | `uifields.py` |
-| 厂商后台登录握手 | 仅登录用的本地兼容（无会话、无签名） | `api/ui_compat.py` |
+| 厂商后台登录与会话 | 已移除；认证只认 UFI-TOOLS 口令 | `auth.py` |
 | 厂商基带信号字段 | 只读 AT 命令的**缓存快照**（默认 60 秒一次） | `modem.py` |
 | `ShellKano` / `RootShell`（socat socket） | `/bin/sh -c`（systemd 本身即 root） | `shell.py` |
 | `SharedPreferences` | `<data_dir>/config.json` 与插件/主题/任务 JSON | `config.py`、`store.py` |
@@ -69,7 +73,8 @@ Web 前端是本仓库的 `linux/www/`（纯静态文件，无构建步骤：And
 ### 安装到设备
 
 ```sh
-sudo ./install.sh                       # 安装 + 生成随机口令 + 注册并启动 systemd 服务
+sudo ./install.sh                       # 安装 + 默认口令 admin + 注册并启动 systemd 服务
+sudo ./install.sh --random-token        # 改成生成 16 位随机口令（暴露在不可信局域网时用）
 sudo ./install.sh --no-systemd          # 只复制文件
 sudo ./install.sh --token 'MyPass123'   # 指定口令
 ```
@@ -77,6 +82,18 @@ sudo ./install.sh --token 'MyPass123'   # 指定口令
 安装位置：`/usr/lib/ufi-tools`（代码）、`/usr/bin/ufi-tools`、`/usr/bin/ufi_req`、
 `/usr/share/ufi-tools/www`（前端）、`/usr/share/ufi-tools/www-linux`（内置 shim）、
 `/var/lib/ufi-tools`（数据，0700）、`/etc/systemd/system/ufi-tools.service`。
+
+### 卸载
+
+```sh
+sudo ./uninstall.sh            # 停服务、删程序文件，保留 /var/lib/ufi-tools（口令与任务）
+sudo ./uninstall.sh --purge    # 连数据一起删
+sudo ./uninstall.sh --dry-run  # 只打印会删什么
+```
+
+卸载会一并回退 UFI-TOOLS 在自身目录之外做的改动（`e5-hotspot.service` 的 drop-in），
+所以设备不会继续用界面上最后设置的热点参数；重启一次 `e5-hotspot.service`
+即回到镜像自带的 `/etc/hostapd/e5.conf`。
 
 ```sh
 systemctl status ufi-tools
@@ -120,7 +137,7 @@ ufi_req -X POST -e /api/linux/hotspot -d '{"ssid":"E5-Lab","psk":"abcdefgh","cha
 | AT 指令终端 / 快捷指令 | ✅ | 原样可用，走 `e5-at`（由 `e5-atd` 转发） |
 | 高级功能 / Root Shell / TTYD | ✅ | 开关高级功能即启停 `ttyd.service`；root shell 受该开关约束 |
 | 内网测速、流量测速 | ✅ | 本地 8 MiB 随机块；蜂窝测速经 `/api/proxy` 拉取外部文件 |
-| 定时任务 | ✅ | 动作为「执行命令」或「转发消息」；旧的 `goformId` 动作仍被路由到本机控制 |
+| 定时任务 | ✅ | 动作只有两种：`kind=command` 执行命令、`kind=forward` 转发消息 |
 | 短信/状态转发（SMTP、CURL、钉钉） | ✅ | 转发通道完整可用；占位符与 Android 版一致 |
 | 流量管理（阈值、提醒、手动校准） | ✅ | 阈值与提醒持久化，校准直接改当日计数 |
 | 插件、主题、多语言、上传图片 | ✅ | 与 Android 版同容量限制（5 MiB / 10 MiB） |
@@ -138,17 +155,17 @@ ufi_req -X POST -e /api/linux/hotspot -d '{"ssid":"E5-Lab","psk":"abcdefgh","cha
 
 ## 前端适配（内置 shim）
 
-上游 Web 界面是为中兴设备写的：登录要填厂商密码，功能列表里有一堆 Linux 上不存在的入口。
-本移植**不改上游前端源码**，而是由后端在返回 `index.html` 时注入 `www-linux/ufi-linux-shim.js`
-（同时作为静态覆盖层提供）。shim 做三件事：
+界面本身已经改造过：登录框只剩「后台口令」一项（厂商密码、登录方式选择、免密码登录都已删除），
+脚本也不再请求厂商登录路径。剩下的适配由后端注入的 `www-linux/ufi-linux-shim.js` 完成
+（同时作为静态覆盖层提供），它做两件事：
 
-1. **让登录只需 UFI-TOOLS 口令**：自动填好并隐藏“厂商后台密码”输入框。
-2. **藏掉做不到的入口**：`ADB`、`ADB_NET`、`APNManagement`、`CHANGEPWD`、`LANManagement`、
+1. **藏掉做不到的入口**：`ADB`、`ADB_NET`、`APNManagement`、`CHANGEPWD`、`LANManagement`、
    `NFC`、`OTA`、`SMS`（有 `samba_unit` 时保留 `SMB`）。
-3. **加一个「E5 控制台」浮层按钮**：本机概览、蜂窝数据开关与速率、热点开关与 SSID/密码/信道表单、
+2. **加一个「E5 控制台」浮层按钮**：本机概览、蜂窝数据开关与速率、热点开关与 SSID/密码/信道表单、
    接入设备列表、性能模式、指示灯、重启/关机。它调用的是原生 `/api/linux/*`。
 
-也可以关掉：`ui_shim = false`。此时前端原样提供（登录会因缺少厂商后台而不可用，只有原生 API 可用）。
+也可以关掉：`ui_shim = false`。此时前端原样提供，登录与状态页照常可用，只是缺了控制台浮层、
+且那些做不到的入口会露出来（点了会得到明确的「本机不支持」）。
 
 ### 热点配置为什么写进数据目录
 
@@ -205,28 +222,37 @@ E5-LINUX 的 initramfs overlay 每次启动都会覆盖 `/etc`，因此 `/etc/ho
 | GET | `/api/linux/ui_compat` | 列出兼容层支持与不支持的动作 |
 | GET | `/api/platform` | 诊断：内核、AT 后端、modem 快照年龄、路径等 |
 
-UI 兼容层（前端使用，`ui_shim=true` 时启用）：`/api/goform/goform_get_cmd_process`（`cmd=<字段>`）、
-`/api/goform/goform_set_cmd_process`（`goformId=<动作>`）。它**不转发任何流量**，
-字段来自 `uifields.py`，动作经 `control.py` 落到 systemd/hostapd/sysfs。
+前端使用的兼容面（`ui_shim=true` 时启用）：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/ui/fields?cmd=<字段列表>` | 按前端沿用的字段名返回本机状态；已退役的厂商登录字段（`LD`/`RD`/`wa_inner_version`/`psw_fail_num_str`/`login_lock_time`）返回明确错误 |
+| POST | `/api/ui/action` | 表单参数 `action=<动作名>`；动作经 `control.py` 落到 systemd/hostapd/sysfs；厂商登录/登出与做不到的动作返回明确错误 |
+
+它**不转发任何流量**：字段来自 `uifields.py`，动作来自 `control.py`。
+前后端动作名由测试交叉校验（`tests/test_frontend.py`），改名不会再悄悄失配。
 
 ## 测试
 
 ```sh
 cd UFI-TOOLS/linux
-make test      # 148 个用例，仅用标准库 unittest
+make test      # 164 个用例，仅用标准库 unittest
 ```
 
 覆盖：签名向量（与 Android/JS/Go 四个实现逐位一致，向量由 Node 原生 `crypto` 独立生成）、
 `/proc`/`/sys` fixture 上的设备信息、atd socket 与真实 pty 的 AT 通道、modem 解析与缓存节流、
 hostapd 配置解析/渲染/加密模式映射与 MAC 名单、流量分桶与速率、配置热加载与口令轮换、
-以及一个真起 HTTP 服务的端到端层（shim 注入、登录握手、字段映射、动作路由、
-不支持动作的明确报错、已移除端点的 404、静态资源、上传、任务、限速与 SSRF 拦截）。
+以及一个真起 HTTP 服务的端到端层（shim 注入、字段映射、动作路由、退役的厂商登录字段与动作、
+旧 `goform` 路径的 404、静态资源、上传、任务、限速与 SSRF 拦截）。另有
+`tests/test_frontend.py` 做前后端契约校验：前端发出的每个 `action` 名后端都认识、
+轮询字段里不含已退役字段、页面与语言包里不再出现厂商叫法或 `goform` 字样。
 
 ## 安全
 
 * **服务以 root 运行**：它需要驱动 systemd、hostapd、sysfs 与基带设备。访问控制依赖 UFI-TOOLS 口令，
   请勿把 2333 端口直接暴露到公网（远程请用插件商店里的 EasyTier / Tailscale）。
-* 默认口令会被标记为弱口令；`install.sh` 默认生成 16 位随机口令。
+* 默认口令是 `admin`（`install.sh` 默认值），服务会把它标记为弱口令并在界面上提示，
+  请尽快用 `ufi-tools set-token NEW` 改掉；安装时加 `--random-token` 可直接生成 16 位随机口令。
 * `/api/proxy/--<url>` 保留 SSRF 拦截：环回、链路本地、RFC1918 一律拒绝，只有显式配置的目标可出网。
 * 时间戳偏差校验默认关闭（与 Android 版一致），需要时可设 `kano_max_skew_ms`。
 

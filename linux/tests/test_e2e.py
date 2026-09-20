@@ -313,42 +313,51 @@ class EndToEndTests(unittest.TestCase):
         self.assertIn("clients", data)
 
     # -- UI compatibility layer -------------------------------------------
-    def test_login_handshake(self):
-        status, data = self.get_json("/api/goform/goform_get_cmd_process?cmd=LD")
-        self.assertEqual(status, 200)
-        self.assertTrue(data["LD"])
+    def action(self, name, **params):
+        payload = dict(params)
+        payload["action"] = name
+        body = urllib.parse.urlencode(payload).encode()
+        status, raw = self.request("POST", "/api/ui/action", body=body,
+                                   headers={"Content-Type": "application/x-www-form-urlencoded"})
+        return status, (json.loads(raw) if raw else None)
 
-        status, data = self.get_json(
-            "/api/goform/goform_get_cmd_process?multi_data=1&cmd=loginfo")
-        self.assertEqual(data["loginfo"], "ok")
+    def test_vendor_login_is_retired(self):
+        # These only ever existed to drive a vendor session; asking for them is
+        # refused rather than answered with a plausible fake.
+        for name in ("LD", "RD", "wa_inner_version", "psw_fail_num_str", "login_lock_time"):
+            status, data = self.get_json("/api/ui/fields?cmd=" + name)
+            self.assertEqual(status, 500, name)
+            self.assertIn("厂商登录已移除", data["error"])
 
-        status, data = self.get_json(
-            "/api/goform/goform_get_cmd_process?cmd=psw_fail_num_str,login_lock_time")
-        self.assertEqual(data["psw_fail_num_str"], "5")
-        self.assertEqual(data["login_lock_time"], "0")
+    def test_login_and_logout_actions_are_retired(self):
+        for name in ("LOGIN", "LOGIN_MULTI_USER", "LOGOUT"):
+            status, data = self.action(name, password="anything")
+            self.assertEqual(status, 500, name)
+            self.assertIn("UFI-TOOLS 口令", data["error"])
 
-        form = urllib.parse.urlencode({"goformId": "LOGIN", "password": "anything"})
-        status, payload = self.request("POST", "/api/goform/goform_set_cmd_process",
-                                       body=form.encode(),
-                                       headers={"Content-Type": "application/x-www-form-urlencoded"})
-        self.assertEqual(status, 200)
-        self.assertEqual(json.loads(payload)["result"], "success")
+    def test_legacy_vendor_paths_are_gone(self):
+        for path in ("/api/goform/goform_get_cmd_process?cmd=loginfo",
+                     "/api/goform/goform_set_cmd_process"):
+            status, data = self.get_json(path)
+            self.assertEqual(status, 404, path)
 
     def test_status_fields_come_from_the_local_device(self):
         cmds = ("ppp_status,battery_value,monthly_rx_bytes,lan_ipaddr,wifi_access_sta_num,"
-                "cr_version,network_signalbar,sms_unread_num,usb_port_switch,sim_slot")
+                "cr_version,network_signalbar,sms_unread_num,usb_port_switch,sim_slot,loginfo")
         status, data = self.get_json(
-            "/api/goform/goform_get_cmd_process?multi_data=1&cmd=" + cmds.replace(",", "%2C"))
+            "/api/ui/fields?multi_data=1&cmd=" + cmds.replace(",", "%2C"))
         self.assertEqual(status, 200)
         self.assertIn(data["ppp_status"], ("ppp_connected", "ppp_disconnected"))
         self.assertTrue(data["cr_version"])
         self.assertEqual(data["sms_unread_num"], "0")
         self.assertEqual(data["sim_slot"], "0")
+        # loginfo means "the request is authenticated", which it is here.
+        self.assertEqual(data["loginfo"], "ok")
         self.assertTrue(str(data["battery_value"]).lstrip("-").isdigit())
 
     def test_access_point_list_shape(self):
         status, data = self.get_json(
-            "/api/goform/goform_get_cmd_process?cmd=queryWiFiModuleSwitch,queryAccessPointInfo")
+            "/api/ui/fields?cmd=queryWiFiModuleSwitch,queryAccessPointInfo")
         self.assertEqual(status, 200)
         self.assertIn(data["queryWiFiModuleSwitch"], ("0", "1"))
         self.assertEqual(len(data["queryAccessPointInfo"]), 1)
@@ -360,70 +369,50 @@ class EndToEndTests(unittest.TestCase):
         self.assertEqual(item["SSID"], "E5-Test")
 
     def test_access_control_list_shape(self):
-        status, data = self.get_json(
-            "/api/goform/goform_get_cmd_process?cmd=queryDeviceAccessControlList")
+        status, data = self.get_json("/api/ui/fields?cmd=queryDeviceAccessControlList")
         self.assertEqual(status, 200)
         for key in ("AclMode", "BlackMacList", "BlackNameList", "devices"):
             self.assertIn(key, data["queryDeviceAccessControlList"], key)
 
-    def test_action_router_updates_local_state(self):
-        form = urllib.parse.urlencode({"goformId": "DATA_LIMIT_SETTING",
-                                       "data_volume_limit_switch": "1",
-                                       "data_volume_limit_size": "1073741824",
-                                       "data_volume_alert_percent": "90"})
-        status, payload = self.request("POST", "/api/goform/goform_set_cmd_process",
-                                       body=form.encode(),
-                                       headers={"Content-Type": "application/x-www-form-urlencoded"})
+    def test_action_updates_local_state(self):
+        status, data = self.action("DATA_LIMIT_SETTING",
+                                   data_volume_limit_switch="1",
+                                   data_volume_limit_size="1073741824",
+                                   data_volume_alert_percent="90")
         self.assertEqual(status, 200)
-        self.assertEqual(json.loads(payload)["result"], "success")
+        self.assertEqual(data["result"], "success")
         self.assertEqual(self.app.config.get("kano_data_flow_max_limit"), 1073741824)
         self.assertEqual(self.app.config.get("kano_data_flow_alert_percent"), "90")
 
-    def test_action_router_routes_ap_configuration(self):
-        form = urllib.parse.urlencode({"goformId": "setAccessPointInfo", "SSID": "FromUI",
-                                       "Password": "abcdefgh", "ApMaxStationNumber": "5",
-                                       "ApBroadcastDisabled": "0"})
-        status, payload = self.request("POST", "/api/goform/goform_set_cmd_process",
-                                       body=form.encode(),
-                                       headers={"Content-Type": "application/x-www-form-urlencoded"})
+    def test_action_routes_ap_configuration(self):
+        status, _ = self.action("setAccessPointInfo", SSID="FromUI", Password="abcdefgh",
+                                ApMaxStationNumber="5", ApBroadcastDisabled="0")
         self.assertEqual(status, 200)
         _, hotspot = self.get_json("/api/linux/hotspot")
         self.assertEqual(hotspot["ssid"], "FromUI")
         self.assertEqual(hotspot["max_clients"], "5")
         self.assertTrue(hotspot["hidden"])
 
-    def test_action_router_reports_unsupported_actions(self):
-        form = urllib.parse.urlencode({"goformId": "LTE_BAND_LOCK", "lte_band_lock": "1,3"})
-        status, payload = self.request("POST", "/api/goform/goform_set_cmd_process",
-                                       body=form.encode(),
-                                       headers={"Content-Type": "application/x-www-form-urlencoded"})
+    def test_action_reports_unsupported_actions(self):
+        status, data = self.action("LTE_BAND_LOCK", lte_band_lock="1,3")
         self.assertEqual(status, 500)
-        self.assertIn("锁频", json.loads(payload)["error"])
+        self.assertIn("锁频", data["error"])
 
-    def test_action_router_rejects_unknown_actions(self):
-        form = urllib.parse.urlencode({"goformId": "NOT_A_THING"}).encode()
-        status, payload = self.request("POST", "/api/goform/goform_set_cmd_process", body=form,
-                                       headers={"Content-Type": "application/x-www-form-urlencoded"})
+    def test_action_rejects_unknown_actions(self):
+        status, data = self.action("NOT_A_THING")
         self.assertEqual(status, 500)
-        self.assertIn("不支持", json.loads(payload)["error"])
+        self.assertIn("不支持", data["error"])
 
-    def test_ui_compat_can_be_disabled(self):
-        self.app.config.set("ui_shim", True)
-        self.assertEqual(self.get_json("/api/goform/goform_get_cmd_process?cmd=LD")[0], 200)
+    def test_action_requires_the_action_key(self):
+        status, data = self.action("")
+        self.assertEqual(status, 500)
+        self.assertIn("action", data["error"])
 
     # -- proxies -----------------------------------------------------------
     def test_any_proxy_refuses_loopback(self):
         status, data = self.get_json("/api/proxy/--http://127.0.0.1:%d/" % self.port)
         self.assertEqual(status, 403)
         self.assertIn("error", data)
-
-    def test_goform_reverse_proxy_is_gone(self):
-        # No vendor backend: the path is answered by the compatibility layer
-        # above, not forwarded to 192.168.0.1.
-        status, data = self.get_json(
-            "/api/goform/goform_get_cmd_process?cmd=loginfo&multi_data=1")
-        self.assertEqual(status, 200)
-        self.assertEqual(data["loginfo"], "ok")
 
     # -- tasks -------------------------------------------------------------
     def test_task_lifecycle(self):
@@ -460,6 +449,23 @@ class EndToEndTests(unittest.TestCase):
         task = {"id": "t", "time": "03:00", "actionMap": {"kind": "forward"}}
         outcome = run_task(self.app, task)
         self.assertFalse(outcome["ok"])
+
+    def test_task_rejects_vendor_style_actions(self):
+        """A task action is command or forward -- nothing else is guessed at."""
+        from ufitools.tasks import run_task
+
+        task = {"id": "t", "time": "03:00", "actionMap": {"goformId": "REBOOT_DEVICE"}}
+        outcome = run_task(self.app, task)
+        self.assertFalse(outcome["ok"])
+        self.assertIn("缺少 command", outcome["detail"])
+
+    def test_task_rejects_unknown_kind(self):
+        from ufitools.tasks import run_task
+
+        task = {"id": "t", "time": "03:00", "actionMap": {"kind": "vendor-thing"}}
+        outcome = run_task(self.app, task)
+        self.assertFalse(outcome["ok"])
+        self.assertIn("未知的 kind", outcome["detail"])
 
     # -- uploads and plugins ----------------------------------------------
     def test_upload_and_fetch(self):

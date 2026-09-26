@@ -81,6 +81,24 @@ class TrafficTests(unittest.TestCase):
     def test_detect_interfaces_prefers_configuration(self):
         self.assertEqual(traffic.detect_interfaces("eth0,wlan0"), ["eth0", "wlan0"])
 
+    def _route_table(self, *rows):
+        header = "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n"
+        body = "".join("\t".join(r) + "\n" for r in rows)
+        return mock.patch("builtins.open", mock.mock_open(read_data=header + body))
+
+    def test_a_point_to_point_default_route_is_the_uplink(self):
+        # "default dev sipa_eth0": no gateway, flags RTF_UP only
+        rows = [("br0", "0009A8C0", "00000000", "0001", "0", "0", "0", "00FFFFFF", "0", "0", "0"),
+                ("sipa_eth0", "00000000", "00000000", "0001", "0", "0", "100", "00000000", "0", "0", "0")]
+        with self._route_table(*rows):
+            self.assertEqual(traffic.default_route_interface(), "sipa_eth0")
+
+    def test_the_lowest_metric_default_route_wins(self):
+        rows = [("wwan0", "00000000", "00000000", "0001", "0", "0", "600", "00000000", "0", "0", "0"),
+                ("eth0", "00000000", "0101A8C0", "0003", "0", "0", "100", "00000000", "0", "0", "0")]
+        with self._route_table(*rows):
+            self.assertEqual(traffic.default_route_interface(), "eth0")
+
 
 if __name__ == "__main__":
     unittest.main()

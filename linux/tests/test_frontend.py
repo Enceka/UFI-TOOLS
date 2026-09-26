@@ -144,6 +144,14 @@ class VendorLeftoverTests(unittest.TestCase):
                 self.assertNotIn(key, pack, "%s still defines %s" % (name, key))
 
 
+class ArithmeticTests(unittest.TestCase):
+    def test_byte_fields_are_not_added_as_strings(self):
+        # The backend answers every field as a string, as the vendor web API
+        # did; "285708039" + "686847219" concatenates to ~250 PB.
+        pair = re.compile(r"res\.[A-Za-z0-9_]*(?:bytes|thrpt)[A-Za-z0-9_]*\s*\+\s*res\.")
+        self.assertEqual(pair.findall(all_frontend_js()), [])
+
+
 class ShimTests(unittest.TestCase):
     def test_shim_does_not_touch_the_login_form(self):
         shim = read("..", "www-linux", "ufi-linux-shim.js")
